@@ -83,3 +83,8 @@ body {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) { .form { flex-direction: column; } .button { width: 100%; } .title { font-size: 28px; } }
+.join-btn {
+  background: #229ED9 !important;   /* Telegram blue */
+  margin-top: 8px;
+}
+.join-btn:hover { filter: brightness(1.1); }
