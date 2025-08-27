@@ -54,13 +54,13 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>SIM Data Checker</title>
+        <title>SIM Information</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <div className="page">
         <div className="card">
-          <h1 className="title">SIM Data Checker</h1>
+          <h1 className="title">Pakistan SIM Data</h1>
           <p className="subtitle">Enter a number in format <b>03xxxxxxxxx</b></p>
 
           <div className="form">
@@ -148,7 +148,7 @@ export default function Home() {
             </div>
           )}
 
-          <div className="footer">©️ 2025 Pak Sim Data • Saeed Ahmed</div>
+          <div className="footer">©️ 2025 SIM Information • Saeed Ahmed</div>
         </div>
       </div>
     </>
