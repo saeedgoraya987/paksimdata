@@ -1,4 +1,4 @@
-export const config = { runtime: "edge" }; // fast on Vercel
+export const config = { runtime: "edge" };
 
 const ORIGIN = "https://famofcfallxd.serv00.net/apis/simdata2.php";
 
@@ -7,7 +7,6 @@ export default async function handler(req) {
     const { searchParams } = new URL(req.url);
     const num = (searchParams.get("num") || "").trim();
 
-    // Validate PK number pattern: 03xxxxxxxxx (11 digits total)
     if (!/^03\d{9}$/.test(num)) {
       return new Response(JSON.stringify({ ok: false, error: "Invalid number. Use 03xxxxxxxxx." }), {
         status: 400,
@@ -16,28 +15,38 @@ export default async function handler(req) {
     }
 
     const upstream = `${ORIGIN}?num=${encodeURIComponent(num)}`;
-    const resp = await fetch(upstream, { headers: { "accept": "application/json" } });
-    if (!resp.ok) {
-      return new Response(JSON.stringify({ ok: false, error: "Upstream request failed" }), {
-        status: 502,
-        headers: { "content-type": "application/json" }
-      });
+    const resp = await fetch(upstream, { headers: { accept: "application/json" } });
+    const text = await resp.text(); // sometimes upstream sends text with warnings
+
+    // Try to parse to object
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      // If the upstream returned PHP warnings + JSON, try to find the last {...}
+      const match = text.match(/\{[\s\S]*\}$/);
+      raw = match ? JSON.parse(match[0]) : { status: "unknown", data: text };
     }
 
-    // Try to parse JSON; if not JSON, return text
-    const text = await resp.text();
-    try {
-      const data = JSON.parse(text);
-      return new Response(JSON.stringify({ ok: true, data }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      });
-    } catch {
-      return new Response(JSON.stringify({ ok: true, data: text }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      });
+    // Remove noisy "message" field
+    if (raw && typeof raw === "object") {
+      delete raw.message;
     }
+
+    // Normalize raw.data: if it’s a JSON string, parse it
+    let normalizedData = raw?.data;
+    if (typeof normalizedData === "string") {
+      try {
+        normalizedData = JSON.parse(normalizedData);
+      } catch {
+        // keep as string if it isn't valid JSON
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, status: raw?.status ?? null, data: normalizedData }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: e?.message || "Unknown error" }), {
       status: 500,
