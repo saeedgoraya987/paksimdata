@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import Head from "next/head";
 
+const TELEGRAM_URL = "https://t.me/Saeed2578"; // <- put your link
+
 function fmtMobile(s) {
   const str = String(s || "");
   // +92 3xx xxxxxx (basic pretty)
@@ -75,8 +77,21 @@ export default function Home() {
             </button>
           </div>
 
+          {/* Join Telegram button (main page only) */}
+          <div style={{ textAlign: "center", marginTop: 10 }}>
+            <a
+              href={TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button join-btn"
+              style={{ display: "inline-block", textDecoration: "none", background: "#229ED9" }}
+            >
+              Join Telegram
+            </a>
+          </div>
+
           {status && (
-            <span className={`badge ${status === "success" ? "ok" : "bad"}`}>
+            <span className={`badge ${status === "success" ? "ok" : "bad"}`} style={{ display: "inline-block" }}>
               Status: {status}
             </span>
           )}
@@ -133,7 +148,7 @@ export default function Home() {
             </div>
           )}
 
-          <div className="footer">Powered by your API • Deployed on Vercel</div>
+          <div className="footer">©️ 2025 Pak Sim Data • Saeed Ahmed</div>
         </div>
       </div>
     </>
