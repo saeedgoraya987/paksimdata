@@ -5,7 +5,6 @@ const TELEGRAM_URL = "https://t.me/Saeed2578"; // <- put your link
 
 function fmtMobile(s) {
   const str = String(s || "");
-  // +92 3xx xxxxxx (basic pretty)
   return str.replace(/^\+?92(\d{3})(\d{7})$/, "+92 $1 $2");
 }
 
@@ -19,16 +18,26 @@ export default function Home() {
   const isValid = useMemo(() => /^03\d{9}$/.test(number), [number]);
 
   async function handleCheck() {
-    setError(""); setStatus(null); setData(null);
-    if (!isValid) { setError("Please enter a valid number (e.g., 03xxxxxxxxx)."); return; }
+    setError(""); 
+    setStatus(null); 
+    setData(null);
+
+    if (!isValid) {
+      setError("Please enter a valid number (e.g., 03xxxxxxxxx).");
+      return;
+    }
 
     setLoading(true);
     try {
       const res = await fetch(`/api/simdata?num=${encodeURIComponent(number)}`);
       const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Failed to fetch data");
-      setStatus(json.status || null);
-      setData(json.data ?? null);
+
+      if (!json || json.status === "error") {
+        throw new Error(json.message || "Failed to fetch data");
+      }
+
+      setStatus(json.status);
+      setData(json);
     } catch (e) {
       setError(e.message || "Request failed");
     } finally {
@@ -36,20 +45,17 @@ export default function Home() {
     }
   }
 
-  const isArrayOfObjects = Array.isArray(data) && data.every(r => r && typeof r === "object");
+  // For single object -> show as key/value table
   const kvRows = useMemo(() => {
-    if (!data || Array.isArray(data)) return [];
-    return Object.entries(data).map(([k, v]) => [k, typeof v === "object" ? JSON.stringify(v) : String(v)]);
+    if (!data || typeof data !== "object") return [];
+    const exclude = ["status", "query"];
+    return Object.entries(data)
+      .filter(([k]) => !exclude.includes(k))
+      .map(([k, v]) => [
+        k,
+        Array.isArray(v) ? v.join(", ") : (v ?? "")
+      ]);
   }, [data]);
-
-  const columns = useMemo(() => {
-    if (!isArrayOfObjects) return [];
-    const keys = new Set();
-    data.forEach(row => Object.keys(row).forEach(k => keys.add(k)));
-    const preferred = ["Name", "Mobile", "Country", "CNIC", "Address"];
-    const rest = [...keys].filter(k => !preferred.includes(k));
-    return [...preferred.filter(k => keys.has(k)), ...rest];
-  }, [data, isArrayOfObjects]);
 
   return (
     <>
@@ -77,7 +83,7 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Join Telegram button (main page only) */}
+          {/* Join Telegram button */}
           <div style={{ textAlign: "center", marginTop: 10 }}>
             <a
               href={TELEGRAM_URL}
@@ -98,50 +104,19 @@ export default function Home() {
 
           {error && <div className="alert error">{error}</div>}
 
-          {/* Array-of-objects -> pretty table */}
-          {isArrayOfObjects && (
-            <div className="tableWrap">
-              <div className="tableScroll">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      {columns.map((c) => <th key={c}>{c}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((row, idx) => (
-                      <tr key={idx}>
-                        {columns.map((c) => {
-                          const val = row[c] ?? "";
-                          const cls =
-                            c === "Name"    ? "col-name"   :
-                            c === "Mobile"  ? "col-mobile" :
-                            c === "Country" ? "col-country":
-                            c === "CNIC"    ? "col-cnic"   :
-                            c === "Address" ? "col-addr wrap" : "";
-                          const display = c === "Mobile" ? fmtMobile(val) : val;
-                          return <td key={c} className={cls}>{String(display)}</td>;
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Single object / primitive -> key/value rows */}
-          {!isArrayOfObjects && data && (
+          {/* Show result as table */}
+          {kvRows.length > 0 && (
             <div className="tableWrap">
               <div className="tableScroll">
                 <table className="table">
                   <thead><tr><th>Field</th><th>Value</th></tr></thead>
                   <tbody>
-                    {kvRows.length > 0 ? kvRows.map(([k, v]) => (
-                      <tr key={k}><td className="col-name"><strong>{k}</strong></td><td className="col-addr wrap">{v}</td></tr>
-                    )) : (
-                      <tr><td className="col-name"><strong>response</strong></td><td className="col-addr wrap">{String(data)}</td></tr>
-                    )}
+                    {kvRows.map(([k, v]) => (
+                      <tr key={k}>
+                        <td className="col-name"><strong>{k}</strong></td>
+                        <td className="col-addr wrap">{String(v)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
