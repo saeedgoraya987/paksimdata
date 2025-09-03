@@ -1,54 +1,120 @@
 export const config = { runtime: "edge" };
 
-const ORIGIN = "https://famofcfallxd.serv00.net/apis/simdata2.php";
+const ORIGIN = "https://www.simdetail.pro/";
 
 export default async function handler(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const num = (searchParams.get("num") || "").trim();
+    const number = (searchParams.get("num") || "").trim();
 
-    if (!/^03\d{9}$/.test(num)) {
-      return new Response(JSON.stringify({ ok: false, error: "Invalid number. Use 03xxxxxxxxx." }), {
+    if (!/^03\d{9}$/.test(number)) {
+      return new Response(JSON.stringify({
+        status: "error",
+        message: "Invalid number. Use 03xxxxxxxxx."
+      }), {
         status: 400,
         headers: { "content-type": "application/json" }
       });
     }
 
-    const upstream = `${ORIGIN}?num=${encodeURIComponent(num)}`;
-    const resp = await fetch(upstream, { headers: { accept: "application/json" } });
-    const text = await resp.text(); // sometimes upstream sends text with warnings
+    // Send POST request like PHP cURL
+    const resp = await fetch(ORIGIN, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ number })
+    });
 
-    // Try to parse to object
-    let raw;
-    try {
-      raw = JSON.parse(text);
-    } catch {
-      // If the upstream returned PHP warnings + JSON, try to find the last {...}
-      const match = text.match(/\{[\s\S]*\}$/);
-      raw = match ? JSON.parse(match[0]) : { status: "unknown", data: text };
+    let text = await resp.text();
+
+    // Strip HTML tags & decode entities
+    const clean = text
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // If "No records found"
+    if (/No records found/i.test(clean)) {
+      return new Response(JSON.stringify({
+        status: "not_found",
+        query: number,
+        message: "No records found. Please check the number."
+      }, null, 2), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
     }
 
-    // Remove noisy "message" field
-    if (raw && typeof raw === "object") {
-      delete raw.message;
-    }
+    // Split into lines
+    const lines = text
+      .replace(/<br\s*\/?>/gi, "\n") // convert <br> into newlines
+      .replace(/<\/p>|<\/div>/gi, "\n")
+      .replace(/<[^>]*>/g, "")
+      .split(/\r?\n/);
 
-    // Normalize raw.data: if it’s a JSON string, parse it
-    let normalizedData = raw?.data;
-    if (typeof normalizedData === "string") {
-      try {
-        normalizedData = JSON.parse(normalizedData);
-      } catch {
-        // keep as string if it isn't valid JSON
+    let name = null;
+    let cnic = null;
+    let address = null;
+    let numbers = [];
+
+    let collectNumbers = false;
+    let lastLabel = null;
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+
+      const lower = line.toLowerCase().replace(/:/g, "");
+
+      if (lower === "name") {
+        lastLabel = "name";
+        continue;
+      } else if (lower === "cnic") {
+        lastLabel = "cnic";
+        continue;
+      } else if (lower === "address") {
+        lastLabel = "address";
+        continue;
+      } else if (/^associated numbers/i.test(line)) {
+        collectNumbers = true;
+        lastLabel = null;
+        continue;
+      }
+
+      if (lastLabel === "name") {
+        name = line;
+        lastLabel = null;
+      } else if (lastLabel === "cnic") {
+        cnic = line;
+        lastLabel = null;
+      } else if (lastLabel === "address") {
+        address = line;
+        lastLabel = null;
+      } else if (collectNumbers) {
+        if (/^\d+$/.test(line)) {
+          numbers.push(line);
+        }
       }
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, status: raw?.status ?? null, data: normalizedData }),
-      { status: 200, headers: { "content-type": "application/json" } }
-    );
+    // Return JSON
+    return new Response(JSON.stringify({
+      status: "success",
+      query: number,
+      name,
+      cnic,
+      address,
+      associated_numbers: numbers
+    }, null, 2), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e?.message || "Unknown error" }), {
+    return new Response(JSON.stringify({
+      status: "error",
+      message: e?.message || "Unknown error"
+    }, null, 2), {
       status: 500,
       headers: { "content-type": "application/json" }
     });
